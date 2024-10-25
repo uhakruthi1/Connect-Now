@@ -38,6 +38,7 @@ export const AuthProvider = ({ children }) => {
             await setDoc(doc(db, 'users', response.user.uid), {
                 username,
                 userId: response.user.uid,
+                email: response.user.email,
             });
             setUser(response.user);
             setIsAuthenticated(true);

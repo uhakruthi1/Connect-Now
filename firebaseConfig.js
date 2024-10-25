@@ -18,10 +18,12 @@ const firebaseConfig = {
 console.log("Firebase Config:", firebaseConfig);
 const app = getApps().length===0?initializeApp(firebaseConfig):getApp();
 export const auth=initializeAuth(app,{
-    persistence:getReactNativePersistence(AsyncStorage)
+  persistence: getReactNativePersistence(AsyncStorage)
 })
 
 export const db=getFirestore(app)
 
 export const userRef=collection(db,'users');
+export const friendRequestRef = collection(db, 'friendRequests');
+export const friendsRef = collection(db, 'friends');
 

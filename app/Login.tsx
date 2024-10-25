@@ -1,30 +1,35 @@
-import { View, Text, TextInput, Button, StyleSheet, Alert, Image ,TouchableOpacity} from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, Image, TouchableOpacity, Dimensions } from 'react-native';
 import React, { useState } from 'react';
-const logo = require('../assets/images/logo.jpg');
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import {useAuth} from '../context/authContext';
-import {auth} from '../firebaseConfig';
+import { useAuth } from '../context/authContext';
+import { auth } from '../firebaseConfig';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native'; 
 import { useRouter } from 'expo-router';
 
+const { width, height } = Dimensions.get('window');
+const logo = require('../assets/images/logo.jpg');
+
+
+
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const {login}=useAuth();
+  const { login } = useAuth();
   const router = useRouter();
-  const navigation=useNavigation();
-  const handleLogin = async() => {
-    if (password === '' || email=='') {
+  const navigation = useNavigation();
+
+  const handleLogin = async () => {
+    if (password === '' || email == '') {
       Alert.alert('Error', 'Invalid Credentials!');
       return;
     }
-    const response= await login(email,password);
-    if(!response.success){
-      Alert.alert('Login',response.msg)
-    }
-    else{
-      router.push('/Dashboard')
+    const response = await login(email, password);
+    if (!response.success) {
+      Alert.alert('Login', response.msg);
+    } else {
+      router.push('/Dashboard');
     }
   };
 
@@ -87,15 +92,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   logo: {
-    width: 500,
-    height: 350,
-   
-    marginBottom: 30,
+    width: width, 
+    height: height * 0.35, 
+    marginBottom: height * 0.05, 
   },
   heading: {
-    fontSize: 35,
+    fontSize: width * 0.09, 
     fontWeight: 'bold',
-    marginBottom: 30,
+    marginBottom: height * 0.04, 
     textAlign: 'center',
   },
   inputContainer: {
@@ -104,42 +108,42 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 5,
-    paddingHorizontal: 10,
-    marginBottom: 20,
-    width: '80%',
+    paddingHorizontal: width * 0.02, 
+    marginBottom: height * 0.025, 
+    width: '80%', 
     backgroundColor: '#f9f9f9',
-    marginLeft:50
+    alignSelf: 'center', 
   },
   input: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 5,
+    paddingVertical: height * 0.02, 
+    paddingHorizontal: width * 0.02, 
   },
   icon: {
-    marginRight: 10,
+    marginRight: width * 0.02, 
   },
   forgotPassword: {
+    fontSize: width * 0.04,
     color: '#007BFF',
-    marginBottom: 20,
-    marginRight:40,
+    marginRight: height * 0.05, 
     textAlign: 'right',
     textDecorationLine: 'underline',
   },
   button: {
-    backgroundColor: '#5DA9C8', 
-    paddingVertical: 12,
-    paddingHorizontal: 30,
+    backgroundColor: '#5DA9C8',
+    paddingVertical: height * 0.02, 
+    paddingHorizontal: width * 0.3, 
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: '#5DADE2', 
+    borderColor: '#5DADE2',
     alignItems: 'center',
-    width: '80%',
-    marginTop: 20,
-    marginLeft:50
+    width: '80%', 
+    alignSelf: 'center', 
+    marginTop: height * 0.02, 
   },
   buttonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: width * 0.05, 
     fontWeight: 'bold',
   },
 });
