@@ -7,14 +7,28 @@
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
+    "permissions": [
+      "CAMERA",
+      "PHOTOS",
+      "FILES",
+      "AUDIODISPLAY",
+      "AVPlayback"
+    ],
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
-    },
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow this app to access your photo library.",
+        "NSDocumentTypeUsageDescription": "Allow this app to access your documents.",
+        "NSCameraUsageDescription": "Allow this app to access your camera for uploading photos.",
+        "NSMicrophoneUsageDescription": "Allow this app to use the microphone for audio recording.",
+        "NSFileProviderDomainUsageDescription": "Allow this app to access your files."
+      }
+    },    
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",

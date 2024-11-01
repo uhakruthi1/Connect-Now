@@ -7,6 +7,8 @@ import { db } from '../firebaseConfig';
 
 const AuthContext = createContext();
 
+
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(undefined);

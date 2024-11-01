@@ -45,45 +45,51 @@ export default function MyRequest() {
       fetchFriends(); 
     }
   }, [user]);
-
   const handleAcceptRequest = async (requestId, senderEmail, senderId) => {
     try {
-      // Update both users as friends in the 'friends' collection
+      // Extract username by removing '@gmail.com' from senderEmail
+      const friendUsername = senderEmail.replace(/@gmail\.com$/, '');
+  
+      // Create or update the friend entry for both users
       await setDoc(doc(db, 'friends', `${user.uid}_${senderId}`), {
         userId: user.uid,
         friendId: senderId,
         friendEmail: senderEmail,
+        friendUsername: friendUsername, // Add the friend's username here
       });
+  
+      const userUsername = user.email.replace(/@gmail\.com$/, ''); // Your username
       await setDoc(doc(db, 'friends', `${senderId}_${user.uid}`), {
         userId: senderId,
         friendId: user.uid,
         friendEmail: user.email,
+        friendUsername: userUsername, // Add your username here
       });
-
-      // Update the status in the friend request document using the requestId
+  
+      // Update the friend request status
       const friendRequestDocRef = doc(friendRequestRef, requestId);
       await setDoc(friendRequestDocRef, { status: 'friends' }, { merge: true });
-
+  
       alert(`Friend request from ${senderEmail} accepted!`);
-      
-      // Update state to reflect the accepted request
+  
+      // Update state for friend requests and friends list
       setFriendRequests(prevRequests => 
         prevRequests.map(req => 
-          req.id === requestId ? { ...req, status: 'friends' } : req // Update the status here
+          req.id === requestId ? { ...req, status: 'friends' } : req
         )
-      ); 
-
-      // Add the accepted friend to the friends list
+      );
+  
       setFriendsList(prevFriends => [
         ...prevFriends,
-        { id: senderId, friendEmail: senderEmail } // Adjust the structure based on your data
+        { id: senderId, friendEmail: senderEmail, friendUsername: friendUsername } // Add username to the friends list
       ]);
-
+  
     } catch (error) {
       console.error('Error accepting friend request:', error);
       alert('Error accepting friend request: ' + error.message);
     }
   };
+  
 
   const renderRequestItem = ({ item }) => (
     <View style={styles.requestItem}>
