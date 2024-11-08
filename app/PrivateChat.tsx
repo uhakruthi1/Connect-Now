@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, Button, FlatList, StyleSheet, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { collection, query, onSnapshot, addDoc, orderBy, Timestamp } from 'firebase/firestore';
@@ -26,6 +26,18 @@ const PrivateChat = () => {
   const [uploading, setUploading] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState<string | null>(null);
+  const flatListRef = useRef<FlatList>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  Audio.setAudioModeAsync({
+    allowsRecordingIOS: false,
+    interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+    playsInSilentModeIOS: true, 
+    interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+    shouldDuckAndroid: true,
+    staysActiveInBackground: false,
+    playThroughEarpieceAndroid: false,
+  });
 
   const route = useRoute();
   const { recipientId, recipientName, recipientImage } = route.params as { recipientId: string; recipientName: string; recipientImage: string };
@@ -46,38 +58,60 @@ const PrivateChat = () => {
   useEffect(() => {
     const fetchMessages = async () => {
       const q = query(collection(db, 'messages'), orderBy('timestamp'));
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const messagesList: Message[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.senderId && data.recipientId && data.timestamp) {
-            messagesList.push({
-              id: doc.id,
-              senderId: data.senderId,
-              recipientId: data.recipientId,
-              message: data.message,
-              mediaUrl: data.mediaUrl,
-              timestamp: data.timestamp,
-            });
-          }
-        });
-
-        const filteredMessages = messagesList.filter((msg) =>
-          (msg.senderId === currentUserId && msg.recipientId === recipientId) ||
-          (msg.senderId === recipientId && msg.recipientId === currentUserId)
-        );
-
-        setMessages(filteredMessages);
-        setLoading(false);
-      }, (error) => {
-        console.error("Error fetching messages:", error);
-      });
+      const unsubscribe = onSnapshot(
+        q,
+        (querySnapshot) => {
+          const messagesList: Message[] = [];
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.senderId && data.recipientId && data.timestamp) {
+              messagesList.push({
+                id: doc.id,
+                senderId: data.senderId,
+                recipientId: data.recipientId,
+                message: data.message,
+                mediaUrl: data.mediaUrl,
+                timestamp: data.timestamp,
+              });
+            }
+          });
+  
+          const filteredMessages = messagesList.filter((msg) =>
+            (msg.senderId === currentUserId && msg.recipientId === recipientId) ||
+            (msg.senderId === recipientId && msg.recipientId === currentUserId)
+          );
+  
+          setMessages(filteredMessages);
+          setLoading(false);
+  
+          // Scroll to bottom with a slight delay to ensure FlatList has rendered
+          setTimeout(() => scrollToBottom(), 100);
+        },
+        (error) => {
+          console.error('Error fetching messages:', error);
+        }
+      );
+  
       requestAudioPermission();
       return () => unsubscribe();
     };
-
+  
     fetchMessages();
   }, [recipientId, currentUserId]);
+  
+  // Ensure that scrolling happens each time `messages` updates
+  useEffect(() => {
+    if (!loading) {
+      scrollToBottom();
+    }
+  }, [messages, loading]);
+  
+
+  useEffect(() => {
+    if (!loading && flatListRef.current) {
+      flatListRef.current.scrollToEnd({ animated: true });
+    }
+  }, [messages, loading]);
 
   const handleSendMessage = async (messageContent?: string, mediaUrl?: string) => {
     if (!messageContent && !mediaUrl) return;
@@ -94,6 +128,9 @@ const PrivateChat = () => {
     try {
       await addDoc(collection(db, 'messages'), newMessage);
       setMessageText('');
+      if (flatListRef.current) {
+        flatListRef.current.scrollToEnd({ animated: true });
+      }
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -104,10 +141,7 @@ const PrivateChat = () => {
       setUploading(true);
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
 
-      if (result.canceled) {
-        console.log('Document picker was canceled.');
-        return;
-      }
+      if (result.canceled) return;
 
       if (result.assets && result.assets.length > 0) {
         const { uri, name } = result.assets[0];
@@ -118,8 +152,6 @@ const PrivateChat = () => {
         await uploadBytes(mediaRef, blob);
         const downloadUrl = await getDownloadURL(mediaRef);
         handleSendMessage(undefined, downloadUrl);
-      } else {
-        console.log('No valid assets found.');
       }
     } catch (error) {
       console.error('Error uploading media:', error);
@@ -129,37 +161,26 @@ const PrivateChat = () => {
   };
 
   const handlePlayAudio = async (uri: string) => {
-    console.log("Attempting to play audio from URI:", uri);
-  
-    if (!uri) {
-      console.error("No audio URI provided.");
-      return;
-    }
-  
+    if (!uri) return;
+
     try {
-      // Stop and unload any currently playing sound
       if (sound) {
-        await sound.stopAsync(); 
-        await sound.unloadAsync(); 
+        await sound.stopAsync();
+        await sound.unloadAsync();
       }
-  
-      // Load the new sound
+
       const { sound: newSound } = await Audio.Sound.createAsync({ uri });
       setSound(newSound);
       setIsPlaying(uri);
-  
-      // Set up the playback status update listener
+
       newSound.setOnPlaybackStatusUpdate(async (status) => {
-        console.log("Playback status:", status);
         if (status.didJustFinish) {
-          await newSound.unloadAsync(); // Unload the sound when it finishes playing
+          await newSound.unloadAsync();
           setIsPlaying(null);
         }
       });
-  
-      // Play the sound
+
       await newSound.playAsync();
-      console.log("Audio is playing");
     } catch (error) {
       console.error("Error playing audio:", error);
     }
@@ -178,25 +199,37 @@ const PrivateChat = () => {
     }
   };
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <Image source={{ uri: recipientImage }} style={styles.profileImage} />
-      <Text style={styles.friendName}>{recipientName.split('@')[0]}</Text>
-      <TouchableOpacity style={styles.iconButton} onPress={handlePickMedia}>
-        <Icon name="attach-file" size={30} color="gray" />
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.iconButton}>
-        <Icon name="call" size={30} color="gray" />
-      </TouchableOpacity>
-    </View>
-  );
+  const handleScroll = (event: any) => {
+    const contentHeight = event.nativeEvent.contentSize.height;
+    const scrollOffset = event.nativeEvent.contentOffset.y;
+    const visibleHeight = event.nativeEvent.layoutMeasurement.height;
+
+    setIsAtBottom(contentHeight - scrollOffset === visibleHeight);
+  };
+
+  const scrollToBottom = () => {
+    if (flatListRef.current) {
+      flatListRef.current.scrollToEnd({ animated: true });
+    }
+  };
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Image source={{ uri: recipientImage }} style={styles.profileImage} />
+        <Text style={styles.friendName}>{recipientName.split('@')[0]}</Text>
+        <TouchableOpacity style={styles.iconButton} onPress={handlePickMedia}>
+          <Icon name="attach-file" size={30} color="gray" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton}>
+          <Icon name="call" size={30} color="gray" />
+        </TouchableOpacity>
+      </View>
       {loading ? (
         <ActivityIndicator size="large" color="skyblue" />
       ) : (
         <FlatList
+          ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -210,14 +243,14 @@ const PrivateChat = () => {
                   onPress={() => {
                     if (item.mediaUrl) {
                       if (isPlaying === item.mediaUrl) {
-                        handleStopAudio(); // Stop if already playing
+                        handleStopAudio();
                       } else {
-                        handlePlayAudio(item.mediaUrl); // Play audio
+                        handlePlayAudio(item.mediaUrl);
                       }
                     }
                   }}
                 >
-                  {item.mediaUrl.endsWith('.pdf') ? (
+                  {item.mediaUrl.endsWith('.pdf') || item.mediaUrl.includes('.pdf') ? (
                     <Text style={{ color: 'blue' }}>View PDF</Text>
                   ) : item.mediaUrl.endsWith('.mp3') || item.mediaUrl.includes('.mp3') ? (
                     <Text style={{ color: 'blue' }}>{isPlaying === item.mediaUrl ? 'Stop Audio' : 'Play Audio'}</Text>
@@ -229,23 +262,25 @@ const PrivateChat = () => {
               <Text style={styles.timestampText}>{item.timestamp.toDate().toLocaleTimeString()}</Text>
             </View>
           )}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={<Text style={styles.emptyChatText}>No messages yet.</Text>}
         />
       )}
-
-      {uploading && <ActivityIndicator size="small" color="blue" />}
-
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Type a message"
           value={messageText}
           onChangeText={setMessageText}
-          onSubmitEditing={() => handleSendMessage(messageText)}
+          placeholder="Type a message..."
         />
-        <Button title="Send" onPress={() => handleSendMessage(messageText)} />
+       <TouchableOpacity onPress={() => handleSendMessage(messageText)} style={styles.sendButtonContainer}>
+         <Icon name="send" size={24} color="blue" />
+        </TouchableOpacity>
+
       </View>
+     
+        <TouchableOpacity style={styles.scrollButton} onPress={scrollToBottom}>
+          <Icon name="keyboard-arrow-down" size={30} color="gray" />
+        </TouchableOpacity>
+     
     </View>
   );
 };
@@ -253,76 +288,95 @@ const PrivateChat = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 10,
     backgroundColor: 'white',
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 10,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: '#e0e0e0',
+    elevation: 5,
   },
   profileImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: 10,
   },
   friendName: {
-    fontSize: 18,
+    fontSize: 30,
     fontWeight: 'bold',
+    marginLeft:10,
     flex: 1,
   },
   iconButton: {
-    marginLeft: 10,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#ccc',
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 5,
+    marginHorizontal: 5,
   },
   messageContainer: {
-    marginVertical: 5,
-    marginHorizontal: 10,
     padding: 10,
-    borderRadius: 5,
-    maxWidth: '80%',
+    marginVertical: 5,
+    borderRadius: 10,
+    maxWidth: '70%',
   },
   sentMessage: {
+    backgroundColor: '#dcf8c6',
     alignSelf: 'flex-end',
-    backgroundColor: '#cce5ff',
   },
   receivedMessage: {
+    backgroundColor: '#e6e6e6',
     alignSelf: 'flex-start',
-    backgroundColor: '#e2e3e5',
   },
   messageText: {
     fontSize: 16,
-    marginBottom: 5,
   },
   timestampText: {
-    fontSize: 12,
+    fontSize: 10,
     color: 'gray',
+    alignSelf: 'flex-end',
   },
   media: {
     width: 200,
     height: 200,
     borderRadius: 10,
-    marginTop: 5,
+    marginVertical: 5,
   },
-  emptyChatText: {
-    textAlign: 'center',
-    marginTop: 20,
-    color: 'gray',
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderColor: '#e0e0e0',
+    padding: 10,
+    marginBottom:20
+  },
+  input: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    marginRight: 10,
+  },
+  sendButton: {
+    color: 'blue',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  scrollButton: {
+    position: 'absolute',
+    right: 10,
+    bottom: 90,
+    transform: [{ translateX: -185 }],
+    borderRadius: 25,
+    padding: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
 });
 

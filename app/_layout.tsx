@@ -112,6 +112,16 @@ const Main = () => {
             headerBackTitleVisible: false,
           }} 
         />
+        <Stack.Screen 
+          name="GroupChat" 
+          
+          options={{ 
+            headerTitle: '',
+            headerTintColor: '#fff',
+            headerStyle: { backgroundColor: '#5DA9C8' },
+            headerBackTitleVisible: false,
+          }} 
+        />
       </Stack>
     </NavigationThemeProvider>
   );
